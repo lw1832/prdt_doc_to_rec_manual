@@ -28,6 +28,7 @@ class PDState(TypedDict):
     file_content: dict # 文件解析结果
     ai_result: BaseMessage # 生成的产品推荐手册文本信息数据结构
     save_dir: str # 保存路径
+    template_path: str # 模板路径
 
 
 # 定义段落模块数据结构
@@ -187,7 +188,7 @@ def generation_doc(state: PDState) -> PDState:
     file_name = os.path.splitext(os.path.basename(state['file_path']))[0]
     if not os.path.exists(state['save_dir']):
         os.makedirs(state['save_dir'])
-    genertate_output_md('template.txt', os.path.join(state['save_dir'], f"{file_name}.md"), content)
+    genertate_output_md(state['template_path'], os.path.join(state['save_dir'], f"{file_name}.md"), content)
     return state
 
 
@@ -204,7 +205,8 @@ workflow.set_finish_point("generation_node")
 
 graph = workflow.compile()
 
-input_obj = {'file_path': f"D:\\pyWorkSpace\\test\\PDF-Extract-Kit-main\\inputs\\ocr\\企业知识管理系统产品推介手册-20250423.pdf",
-             'save_dir':f"D:\\pyWorkSpace\\test\\PDF-Extract-Kit-main\\scripts"}
+input_obj = {'file_path': "D:\\pyWorkSpace\\prdt_doc_to_rec_manual\\prdt_doc_to_rec_manual\\inputs\\prdt_doc_to_rec_md\\企业知识管理系统产品推介手册-20250423.pdf",
+             'save_dir': "D:\\pyWorkSpace\\prdt_doc_to_rec_manual\\prdt_doc_to_rec_manual\\assets\\doc_to_recommendation",
+             'template_path' : "..\\..\\configs\\template.txt"}
 result = graph.invoke(input_obj)
 

@@ -14,9 +14,10 @@ from pdf_extract_kit.utils.config_loader import load_config, initialize_tasks_an
 
 TASK_NAME_OCR = 'ocr'
 TASK_NAME_LAYOUT = 'layout_detection'
-CONFIG_PATH = '../configs/ocr_layout.yaml'
+CONFIG_PATH = '../../configs/ocr_layout.yaml'
 
 def process(file_path=None):
+
     config = load_config(CONFIG_PATH)
     task_instances = initialize_tasks_and_models(config)
 

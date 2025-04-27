@@ -1,5 +1,5 @@
-inputs: ../inputs/prdt_doc_to_rec_md
-outputs: ../assets/doc_to_recommendation
+inputs: ../../inputs/prdt_doc_to_rec_md
+outputs: ../../assets/doc_to_recommendation
 tasks:
   ocr:
     visualize: True
@@ -16,5 +16,5 @@ tasks:
       img_size: 1024
       conf_thres: 0.25
       iou_thres: 0.45
-      model_path: ../models/Layout/YOLO/doclayout_yolo_docstructbench_imgsz1280_2501.pt
+      model_path: ../../models/Layout/YOLO/doclayout_yolo_docstructbench_imgsz1280_2501.pt
       visualize: True
