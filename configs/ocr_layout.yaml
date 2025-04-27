@@ -1,5 +1,5 @@
 inputs: ../inputs/prdt_doc_to_rec_md
-outputs: ../assets/OCR_LAYOUT
+outputs: ../assets/doc_to_recommendation
 tasks:
   ocr:
     visualize: True

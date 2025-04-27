@@ -1,0 +1,7 @@
+inputs: D:\pyWorkSpace\PDF-Extract-Kit-main\inputs\ocr\GPT时代的程序员生存之道.pdf
+outputs: outputs/layout_detection
+tasks:
+  layout_detection:
+    model: layout_detection_layoutlmv3
+    model_config:
+      model_path: models/Layout/LayoutLMv3/model_final.pth
