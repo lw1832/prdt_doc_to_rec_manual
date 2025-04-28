@@ -7,3 +7,6 @@ unimernet==0.2.1
 paddlepaddle
 paddleocr==2.7.3
 struct-eqtable
+langgraph
+langchain_openai
+scikit-learn

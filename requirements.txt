@@ -8,3 +8,6 @@ paddlepaddle-gpu
 paddleocr==2.7.3
 struct-eqtable
 lmdeploy
+langgraph
+langchain_openai
+scikit-learn

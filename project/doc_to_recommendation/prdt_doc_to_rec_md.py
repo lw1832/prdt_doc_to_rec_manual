@@ -7,6 +7,7 @@ C (将打标图片、pdf文本 (dict)、prompt (str)作为输入): 输出 按照
 
 D (将C中内容作为输入 AIMessage): 将数据结构对象填入模板，导出对应文档
 """
+import argparse
 import base64
 import io
 import json
@@ -19,7 +20,7 @@ from langgraph.graph import StateGraph
 from openai import BaseModel
 
 from project.doc_to_recommendation.utils.generate_utils import genertate_output_md
-from scripts.ocr_layout_task import process
+from scripts.ocr_layout_task import process as ocr_process
 
 
 # 定义State
@@ -85,23 +86,24 @@ os.environ["OPENAI_BASE_URL"] = "https://xiaoai.plus/v1"
 prompt = """
     你是一个邮政储蓄银行的产品推荐手册文档的写作专家，请阅读、润色给你的材料，并以下述的模块生成一个完整的产品推荐手册文档：
     总体介绍、核心功能介绍、案例分析、对接流程
-    说明：
+
+    提示说明：
     1. 输入为json格式，里面包含了一段文本材料，和若干图片材料，我不会直接上传图片材料，而是给你提供了图片的名称(全路径名)、图片文字描述以及标签，请理解这些材料的内容
-    2. 输出必须包含这四个模块
-    输出内容要求：
+    2. 要求图文并茂，推理时结合图片和文本的关联性，请用图片描述来补充文本，请结合文本来理解图像描述的上下文。
+    3. 在理解图片材料时，应注意给出的标签(label)，此字段如果有值，则表示该图片所属的模块或者内容方向，尽量将图片材料放入输出数组中的合适位置，如果找不到图片对应的描述文字，请结合上下文生成自然段用于解释该图片。
+    4. 根据提供的工具函数接口，识别生成文本的格式，输出一个PrdtDocInstructions对象，每个模块字段中应该存放一个数组，数组中每个元素为一个PeriodInstructions对象，数组元素的顺序意味着在文章中的顺序。
+    5. 如果是图片，则根据给定的PeriodInstructions数据结构生成对应代表该图片的对象，其中content应该放该图片的名称(全路径名)。
+        
+    输出要求：
     1. “总体介绍”部分的内容需包括但不限于建设背景、业务定位及应用场景、客户服务群体、主要功能清单/功能分类等。在语言表述方面，弱化技术架构、技术语言等描述，从功能优势、服务场景等有助于业务发展方面展开描述。
     2. “核心功能介绍”部分主要阐述解决客户痛点、带来的业务价值。内容包括但不限于该产品主要功能的服务场景、业务价值、能够解决的客户的痛点及问题、与同业对比等。
     3. “案例分析”部分主要阐述该产品的功能为什么样的客群解决什么样的问题，带来什么成效。包括但不限于分行面临的痛点及问题、解决方案、给分行带来的价值和成效等。
     4. “对接流程”主要是阐述产品对接的流程、方式、内容。
-    5. 每个模块尽量详细、丰富，字数控制在200-250以内，至少3个子模块（如总体介绍含背景/定位/场景/功能），能涵盖给定材料（文本+图片）中98%的内容。
-    6. 要求图文并茂，请推理图片和文本的关联性，请用图片描述来补充文本，请结合文本来理解图像描述的上下文。
-    7. 在理解图片材料时，应注意给出的标签(label)，此字段如果有值，则表示该图片所属的模块或者内容方向，尽量将图片材料放入输出数组中的合适位置，如果找不到图片对应的描述文字，请结合上下文生成自然段用于解释该图片。
-    输出格式要求：
-    1. 每个自然段如果是单独一段，则起一个小段的标题，放在文本前，用“****”包围，例如：**小段标题**正文内容。
-    2. 输入的材料中还有图片数组，请识别数组中各个图片语义，根据语义和上下文，将图片穿插在文本段落的合适位置(尽量充分利用给出的图片材料，但不要有连续多张图排列一起的情况)
-    3. 根据提供的工具函数接口，识别生成文本的格式，输出一个PrdtDocInstructions对象，每个模块字段中应该存放一个数组，数组中每个元素为一个PeriodInstructions对象，数组元素的顺序意味着在文章中的顺序。
-    4. 如果是图片，则根据给定的PeriodInstructions数据结构生成对应代表该图片的对象，其中content应该放该图片的名称(全路径名)。
-    
+    5. 输出必须包含给出的四个模块：总体介绍、核心功能介绍、案例分析、对接流程。
+    6. 每个模块尽量详细、丰富，字数控制在200-250以内，至少3个子模块（如总体介绍含背景/定位/场景/功能），能涵盖给定材料（文本+图片）中98%的内容。
+    7. 生成正文请根据内容拆分自然段，每个自然段如果是单独一段，则起一个小段的标题，放在文本前，用“****”包围，例如：**小段标题**正文内容。
+    8. 请识别输入图片数组中各个图片语义，根据语义和上下文，将图片穿插在文本段落的合适位置(尽量充分利用给出的图片材料，但不要有连续多张图排列一起的情况) 
+     
 """
 
 # 定义工具集合
@@ -156,7 +158,7 @@ def agent_node(state: PDState) -> PDState:
 
 # 定义parse_pdf_node
 def parse_pdf(state: PDState) -> PDState:
-    contents, figures = process(state['file_path'])
+    contents, figures = ocr_process(state['file_path'])
     figures = [img_conv(i) for figure in figures for i in figure]
     state['file_content'] = {'contents': contents, 'figures': figures}
     return state
@@ -203,10 +205,18 @@ workflow.add_edge("agent_node", "generation_node")
 workflow.set_finish_point("generation_node")
 
 
-graph = workflow.compile()
+def process(input_path: str, save_dir: str):
+    graph = workflow.compile()
+    input_obj = {
+        'file_path': input_path,
+        'save_dir': save_dir,
+        'template_path': "..\\..\\configs\\template.txt"}
+    result = graph.invoke(input_obj)
+    return result
 
-input_obj = {'file_path': "D:\\pyWorkSpace\\prdt_doc_to_rec_manual\\prdt_doc_to_rec_manual\\inputs\\prdt_doc_to_rec_md\\企业知识管理系统产品推介手册-20250423.pdf",
-             'save_dir': "D:\\pyWorkSpace\\prdt_doc_to_rec_manual\\prdt_doc_to_rec_manual\\assets\\doc_to_recommendation",
-             'template_path' : "..\\..\\configs\\template.txt"}
-result = graph.invoke(input_obj)
-
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="Run a task with a given configuration file.")
+    parser.add_argument('--input', type=str, required=True, help='Path to the input file.')
+    parser.add_argument('--output', type=str, required=True, help='Dir to save output file.')
+    args = parser.parse_args()
+    process(args.__dict__['input'], args.__dict__['output'])
