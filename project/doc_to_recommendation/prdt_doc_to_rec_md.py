@@ -14,14 +14,15 @@ import json
 import os
 from typing import TypedDict, Literal, Optional, List
 
-from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage
+from langchain_core.messages import BaseMessage
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph
 from openai import BaseModel
 
+from project.doc_to_recommendation.llm.llm_task import init_model
+from project.doc_to_recommendation.llm.model.OpenAiChat_model import OpenAIChatModel
 from project.doc_to_recommendation.utils.generate_utils import genertate_output_md
 from scripts.ocr_layout_task import process as ocr_process
-
 
 # 定义State
 class PDState(TypedDict):
@@ -81,9 +82,8 @@ class PrdtDocInstruct(TypedDict):
 
 
 # 输入有两个数组，第一个数组传入了供你生成推荐手册文档的文字材料；第二个数组传入了图片材料，每个图片数据有两个属性，其中name表示其编号，image表示该图片的信息
-os.environ["OPENAI_API_KEY"] = "sk-LGylSerFax4P4OiNZAKHyLQnf0VLHAcpltDsy4OehkPLXkUC"
-os.environ["OPENAI_BASE_URL"] = "https://xiaoai.plus/v1"
-prompt = """
+
+PROMPT_TEXT_GEN = """
     你是一个邮政储蓄银行的产品推荐手册文档的写作专家，请阅读、润色给你的材料，并以下述的模块生成一个完整的产品推荐手册文档：
     总体介绍、核心功能介绍、案例分析、对接流程
 
@@ -106,15 +106,31 @@ prompt = """
      
 """
 
+PROMPT_IMG_CAPTION = """
+            这张图片来自邮政储蓄银行的“产品功能介绍”ppt中的其中一张截图，其中有一些图是有具体业务背景含义的图片，有一些是被目标价测算法误识别出来的ppt中的装饰图或者模板图形，
+            这些ppt图形往往图片仅包含基础几何形状（圆形/扇形/箭头）或者单一图标；文字内容简短抽象；与图形结合松散，缺乏数据展示；无明确信息层级结构或逻辑关系。
+            请根据图片内容及其中的文本分析该图的含义。同时请根据文本内容、图标元素、业务逻辑完整性等因素关联去推测这张图片是否为本身没有具体业务指向的ppt的装饰图或者模板图形，
+            如果是，则将这个图片标记为deprecated。
+
+            结果输出要求：
+            必须以输出ImageCaptionInstructions数据结构的形式，判断如果该图片是ppt模板图片，则type=‘ppt’否则type='img'，将该图含义信息存放到description中
+            """
+
+QUESTION_IMG_CAPTION = "请输出图片内容描述以及是否为ppt模板图片推测结果？"
+
+
 # 定义工具集合
-tools1 = [PrdtDocInstructions, PeriodInstructions]
-tools2 = [ImageDescriptionInstructions]
+tools_text_gen = [PrdtDocInstructions, PeriodInstructions]
+tools_img_caption = [ImageDescriptionInstructions]
 # 定义agent
-model_gen = ChatOpenAI(model='gpt-4o', temperature=0.3).bind_tools(tools1)
-model_img = ChatOpenAI(model='gpt-4o', temperature=0.3).bind_tools(tools2)
-
-
-
+model_gen = init_model("open_ai_chat_model", config={
+    'model': 'gpt-4o',
+    'temperature': 0.3
+}, tools=tools_text_gen)
+model_img = init_model("open_ai_chat_model", config={
+    'model': 'gpt-4o',
+    'temperature': 0.3
+}, tools=tools_img_caption)
 
 # 定义agent_node
 def agent_node(state: PDState) -> PDState:
@@ -122,21 +138,7 @@ def agent_node(state: PDState) -> PDState:
     figures = state['file_content']['figures']
     figures_fin = []
     for figure in figures:
-        message = [
-            SystemMessage(content="""
-            这张图片来自邮政储蓄银行的“产品功能介绍”ppt中的其中一张截图，其中有一些图是有具体业务背景含义的图片，有一些是被目标价测算法误识别出来的ppt中的装饰图或者模板图形，
-            这些ppt图形往往图片仅包含基础几何形状（圆形/扇形/箭头）或者单一图标；文字内容简短抽象（如"核心定位""01"）；与图形结合松散，缺乏数据展示；无明确信息层级结构或逻辑关系。
-            请根据图片内容及其中的文本分析该图的含义。同时请根据文本内容、图标元素、业务逻辑完整性等因素关联去推测这张图片是否为本身没有具体业务指向的ppt的装饰图或者模板图形，
-            如果是，则将这个图片标记为deprecated。
-            
-            结果输出要求：
-            必须以输出ImageCaptionInstructions数据结构的形式，判断如果该图片是ppt模板图片，则type=‘ppt’否则type='img'，将该图含义信息存放到description中
-            """),
-            HumanMessage(content=[
-                {"type": "text", "text": "请输出图片内容描述以及是否为ppt模板图片推测结果"},
-                figure[1]
-            ])]
-        img_result = model_img.invoke(message)
+        img_result = model_img.agent_calls(text=QUESTION_IMG_CAPTION, image=figure[1], prompt=PROMPT_IMG_CAPTION)
         if len(img_result.tool_calls) >= 1:
             imgDscp = img_result.tool_calls[0]['args']
             print("figure:", figure[0], " type:", imgDscp['type'], " description:", imgDscp['description'])
@@ -147,12 +149,8 @@ def agent_node(state: PDState) -> PDState:
             figures_fin.append({'name': figure[0], 'description': img_result.content})
 
     content = '\n'.join([element for sublist in contents for element in sublist])
-    message = {'文本材料': content, '图片材料': figures_fin}
-    messages = [
-        SystemMessage(content=prompt),
-        HumanMessage(content=json.dumps(message)),
-    ]
-    state['ai_result'] = model_gen.invoke(messages)
+    message = json.dumps({'文本材料': content, '图片材料': figures_fin})
+    state['ai_result'] = model_gen.agent_calls(text=message, image=None, prompt=PROMPT_TEXT_GEN)
     return state
 
 

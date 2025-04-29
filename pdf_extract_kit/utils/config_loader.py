@@ -35,8 +35,6 @@ def initialize_tasks_and_models(config):
 
         model_name = config['tasks'][task_name]['model']
         model_config = config['tasks'][task_name]['model_config']
-        print(TASK_REGISTRY.list_items())
-        print(MODEL_REGISTRY.list_items())
         TaskClass = TASK_REGISTRY.get(task_name)
         ModelClass = MODEL_REGISTRY.get(model_name)
 
