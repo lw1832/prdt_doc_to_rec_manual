@@ -1,5 +1,6 @@
 inputs: ../../inputs/prdt_doc_to_rec_md
 outputs: ../../assets/doc_to_recommendation
+log_outputs: ../../logs
 tasks:
   ocr:
     visualize: True

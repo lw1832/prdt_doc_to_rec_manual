@@ -16,7 +16,7 @@ TASK_NAME_OCR = 'ocr'
 TASK_NAME_LAYOUT = 'layout_detection'
 CONFIG_PATH = '../../configs/ocr_layout.yaml'
 
-def process(file_path=None):
+def process(file_path=None, save_dir=None):
 
     config = load_config(CONFIG_PATH)
     task_instances = initialize_tasks_and_models(config)
@@ -24,9 +24,9 @@ def process(file_path=None):
     # get input and output path from config
     input_data = file_path if file_path is not None else config.get('inputs', None)
     file_name = os.path.splitext(os.path.basename(input_data))[0]
-    result_path_ocr = config.get('outputs', 'outputs'+'/'+'OCR_LAYOUT'+'/'+TASK_NAME_OCR) + '/' + file_name
-    result_path_layout = config.get('outputs', 'outputs'+'OCR_LAYOUT'+'/'+TASK_NAME_LAYOUT) + '/' + file_name
-    result_path_img = config.get('outputs', 'outputs'+'/img') + '/' + file_name
+    result_path_ocr = config.get('log_outputs', 'logs/OCR_LAYOUT') + '/' + file_name
+    result_path_layout = config.get('log_outputs', 'logs/OCR_LAYOUT') + '/' + file_name
+    result_path_img = save_dir + '/' + file_name if save_dir is not None else 'outputs/' + file_name
     visualize = config['tasks'][TASK_NAME_OCR]['visualize']
 
     # formula_detection_task
@@ -44,6 +44,7 @@ def process(file_path=None):
     return ocr_layout_extract(input_data, ocr_results[0], layout_results, result_path_img)
 
 def ocr_layout_extract(fpath, ocr_results, layout_results, save_dir=""):
+    os.makedirs(save_dir, exist_ok=True)
     images = load_pdf(fpath)
     basename = os.path.basename(fpath)[:-4]
     figures = []

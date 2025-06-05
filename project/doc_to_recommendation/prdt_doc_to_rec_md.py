@@ -156,7 +156,7 @@ def agent_node(state: PDState) -> PDState:
 
 # 定义parse_pdf_node
 def parse_pdf(state: PDState) -> PDState:
-    contents, figures = ocr_process(state['file_path'])
+    contents, figures = ocr_process(state['file_path'], state['save_dir'])
     figures = [img_conv(i) for figure in figures for i in figure]
     state['file_content'] = {'contents': contents, 'figures': figures}
     return state
